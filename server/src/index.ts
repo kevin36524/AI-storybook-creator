@@ -1,5 +1,5 @@
-// FIX: Changed express import to use require syntax to solve a type resolution error on app.use().
-import express = require('express');
+// FIX: Use standard ES module import for express. The `import = require()` syntax is not compatible with the current module target and was causing type resolution errors.
+import express from 'express';
 import cors from 'cors';
 import { Storage } from '@google-cloud/storage';
 import { v4 as uuidv4 } from 'uuid';
@@ -20,10 +20,17 @@ const bucket = storage.bucket(bucketName);
 
 
 // --- INITIALIZE FIRESTORE ---
-// Connect to the specific Firestore database named 'ai-story-creator'.
+const databaseId = process.env.FIRESTORE_DATABASE_ID;
+
+if (!databaseId) {
+    console.error('FATAL ERROR: FIRESTORE_DATABASE_ID environment variable not set.');
+    process.exit(1);
+}
+
+// Connect to the specific Firestore database from environment variable.
 // The SDK automatically finds the service account credentials when deployed on GCP.
 const db = new Firestore({
-    databaseId: 'ai-story-creator',
+    databaseId: databaseId,
 });
 const storiesCollection = db.collection('stories');
 
