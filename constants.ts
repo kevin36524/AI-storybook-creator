@@ -1,5 +1,6 @@
 export enum AppState {
   PROMPT,
+  GALLERY,
   OUTLINE,
   CHARACTER_CREATION,
   CREATING_PAGES,

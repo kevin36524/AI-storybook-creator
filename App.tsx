@@ -1,12 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import { AppState } from './constants';
-import type { StoryPage, Character } from './types';
-import { generateStoryOutline, identifyCharactersAndPages, generateAudioForText } from './services/geminiService';
+import type { StoryPage, Character, PublicStory } from './types';
+import { generateStoryOutline, identifyCharactersAndPages, generateAudioForText, getPublicStories } from './services/geminiService';
 import PromptInput from './components/PromptInput';
 import OutlineDisplay from './components/OutlineDisplay';
 import CharacterCreator from './components/CharacterCreator';
 import PageCreator from './components/PageCreator';
 import StoryBookDisplay from './components/StoryBookDisplay';
+import Gallery from './components/Gallery';
 import { BookOpenIcon, SparklesIcon } from './components/icons/Icons';
 import Card from './components/ui/Card';
 import Spinner from './components/ui/Spinner';
@@ -14,16 +15,19 @@ import Spinner from './components/ui/Spinner';
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.PROMPT);
+  const [storyTitle, setStoryTitle] = useState<string>('');
   const [storyPrompt, setStoryPrompt] = useState<string>('');
   const [storyPages, setStoryPages] = useState<StoryPage[]>([]);
   const [characters, setCharacters] = useState<Character[]>([]);
   const [currentPageIndex, setCurrentPageIndex] = useState<number>(0);
+  const [publicStories, setPublicStories] = useState<PublicStory[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState<boolean>(false);
 
   const handleReset = () => {
     setAppState(AppState.PROMPT);
+    setStoryTitle('');
     setStoryPrompt('');
     setStoryPages([]);
     setCharacters([]);
@@ -33,8 +37,9 @@ const App: React.FC = () => {
     setIsGeneratingAudio(false);
   };
 
-  const handlePromptSubmit = useCallback(async (prompt: string) => {
+  const handlePromptSubmit = useCallback(async (prompt: string, title: string) => {
     setStoryPrompt(prompt);
+    setStoryTitle(title);
     setIsLoading(true);
     setError(null);
     try {
@@ -46,6 +51,34 @@ const App: React.FC = () => {
       console.error(err);
     } finally {
       setIsLoading(false);
+    }
+  }, []);
+
+  const handlePageUpdate = useCallback((pageIndex: number, newText: string) => {
+    setStoryPages(prev => prev.map((p, i) => i === pageIndex ? { ...p, text: newText } : p));
+  }, []);
+
+  const handlePageDelete = useCallback((pageIndex: number) => {
+    setStoryPages(prev => {
+        const newPages = prev.filter((_, i) => i !== pageIndex);
+        // Re-number pages
+        return newPages.map((p, i) => ({ ...p, page: i + 1 }));
+    });
+  }, []);
+
+  const handleViewGallery = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+        const stories = await getPublicStories();
+        setPublicStories(stories);
+        setAppState(AppState.GALLERY);
+    } catch(err) {
+        setError('Could not load the story gallery. Please try again later.');
+        console.error(err);
+        setAppState(AppState.PROMPT); // Go back to prompt on error
+    } finally {
+        setIsLoading(false);
     }
   }, []);
 
@@ -120,7 +153,7 @@ const App: React.FC = () => {
 
   const renderContent = () => {
     if (isLoading && appState !== AppState.PROMPT && appState !== AppState.CREATING_PAGES) {
-      return <Card><Spinner message="Finding your characters..." /></Card>;
+      return <Card><Spinner message="Loading..." /></Card>;
     }
     if (error && appState === AppState.OUTLINE) {
         return (
@@ -136,15 +169,22 @@ const App: React.FC = () => {
         return (
           <PromptInput
             onSubmit={handlePromptSubmit}
+            onViewGallery={handleViewGallery}
             isLoading={isLoading}
             error={error}
           />
+        );
+      case AppState.GALLERY:
+        return (
+            <Gallery stories={publicStories} onBack={handleReset} />
         );
       case AppState.OUTLINE:
         return (
           <OutlineDisplay
             pages={storyPages}
             onConfirm={handleOutlineConfirm}
+            onPageUpdate={handlePageUpdate}
+            onPageDelete={handlePageDelete}
             onRetry={handleReset}
           />
         );
@@ -169,7 +209,8 @@ const App: React.FC = () => {
       case AppState.FINISHED:
         return (
           <StoryBookDisplay 
-            pages={storyPages} 
+            pages={storyPages}
+            title={storyTitle}
             onReset={handleReset}
             isGeneratingAudio={isGeneratingAudio}
             onGenerateAudiobook={handleGenerateAudiobook}

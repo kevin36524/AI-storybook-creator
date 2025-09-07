@@ -1,29 +1,32 @@
-
 import React, { useState } from 'react';
 import Card from './ui/Card';
 import Button from './ui/Button';
 import Spinner from './ui/Spinner';
-import { MagicWandIcon } from './icons/Icons';
+import { MagicWandIcon, UsersIcon } from './icons/Icons';
 
 interface PromptInputProps {
-  onSubmit: (prompt: string) => void;
+  onSubmit: (prompt: string, title: string) => void;
+  onViewGallery: () => void;
   isLoading: boolean;
   error: string | null;
 }
 
-const PromptInput: React.FC<PromptInputProps> = ({ onSubmit, isLoading, error }) => {
+const PromptInput: React.FC<PromptInputProps> = ({ onSubmit, onViewGallery, isLoading, error }) => {
   const [prompt, setPrompt] = useState('');
+  const [title, setTitle] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (prompt.trim()) {
-      onSubmit(prompt.trim());
+    if (prompt.trim() && title.trim()) {
+      onSubmit(prompt.trim(), title.trim());
     }
   };
   
   const handleSuggestionClick = (suggestion: string) => {
     setPrompt(suggestion);
-    onSubmit(suggestion);
+    // Suggest a title based on the prompt
+    const suggestedTitle = suggestion.split(' who')[0];
+    setTitle(suggestedTitle);
   };
   
   const suggestions = [
@@ -43,17 +46,31 @@ const PromptInput: React.FC<PromptInputProps> = ({ onSubmit, isLoading, error })
         <h2 className="text-3xl font-bold text-slate-700 dark:text-slate-200 mb-2">What's your story about?</h2>
         <p className="text-slate-500 dark:text-slate-400 mb-6">Tell us your idea, and we'll bring it to life!</p>
       </div>
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="What's the title of your story?"
+          className="w-full p-4 border-2 border-rose-200 rounded-xl focus:ring-4 focus:ring-rose-300 focus:border-rose-400 transition duration-300 dark:bg-slate-800 dark:text-slate-200 dark:border-rose-700 dark:focus:ring-rose-600 dark:focus:border-rose-500"
+          disabled={isLoading}
+          required
+        />
         <textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="For example: A curious cat who discovers a hidden garden..."
           className="w-full h-32 p-4 border-2 border-rose-200 rounded-2xl focus:ring-4 focus:ring-rose-300 focus:border-rose-400 transition duration-300 resize-none dark:bg-slate-800 dark:text-slate-200 dark:border-rose-700 dark:focus:ring-rose-600 dark:focus:border-rose-500"
           disabled={isLoading}
+          required
         />
         {error && <p className="text-red-500 mt-2 text-center">{error}</p>}
-        <div className="mt-6 flex justify-center">
-          <Button type="submit" disabled={!prompt.trim() || isLoading} isLoading={isLoading}>
+        <div className="pt-2 flex flex-col sm:flex-row justify-center gap-4">
+          <Button type="button" onClick={onViewGallery} variant="secondary" disabled={isLoading}>
+            <UsersIcon />
+            View Story Gallery
+          </Button>
+          <Button type="submit" disabled={!prompt.trim() || !title.trim() || isLoading} isLoading={isLoading}>
             <MagicWandIcon />
             Create My Story
           </Button>

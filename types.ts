@@ -12,3 +12,11 @@ export interface Character {
     imageUrl?: string;
     imageMimeType?: string;
 }
+
+export interface PublicStory {
+    id: string;
+    title: string;
+    author: string;
+    coverImageUrl: string;
+    htmlUrl: string;
+}

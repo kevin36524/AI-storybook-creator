@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import type { StoryPage, Character } from '../types';
+import type { StoryPage, Character, PublicStory } from '../types';
 
 if (!process.env.API_KEY) {
   throw new Error("API_KEY environment variable not set");
@@ -16,7 +16,6 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
  * @returns A promise that resolves to the public URL of the stored file.
  */
 export const uploadFile = async (content: string, mimeType: string, isHtml = false): Promise<string> => {
-    // In a deployed app, requests to /api/... should be routed to the backend service.
     const BACKEND_URL = '/api/upload';
 
     try {
@@ -72,7 +71,40 @@ export const generateStoryOutline = async (prompt: string): Promise<StoryPage[]>
   }
 };
 
-const characterSchema = { /* Unchanged */ };
+const characterSchema = {
+    type: Type.OBJECT,
+    properties: {
+        characters: {
+            type: Type.ARRAY,
+            description: "A list of the main characters in the story.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    name: { type: Type.STRING, description: "The character's name." },
+                    description: { type: Type.STRING, description: "A brief, one-sentence physical description of the character suitable for an image generation prompt." }
+                },
+                required: ["name", "description"]
+            }
+        },
+        pages: {
+            type: Type.ARRAY,
+            description: "Mapping of which characters appear on each page.",
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    page: { type: Type.INTEGER, description: "The page number." },
+                    characters: {
+                        type: Type.ARRAY,
+                        description: "A list of character names that appear on this page.",
+                        items: { type: Type.STRING }
+                    }
+                },
+                required: ["page", "characters"]
+            }
+        }
+    },
+    required: ["characters", "pages"]
+};
 
 export const identifyCharactersAndPages = async (pages: StoryPage[]): Promise<{ characters: Character[]; pagesWithCharacters: { page: number; characters: string[] }[] }> => {
     const storyText = pages.map(p => `Page ${p.page}: ${p.text}`).join('\n');
@@ -115,37 +147,37 @@ export const generateCharacterImage = async (description: string): Promise<strin
     }
 };
 
+const fetchImageAsBase64 = async (imageUrl: string): Promise<string> => {
+    const response = await fetch(imageUrl);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            const base64data = (reader.result as string).split(',')[1];
+            resolve(base64data);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+};
+
 export const generatePageImageWithReferences = async (page: StoryPage, allCharacters: Character[]): Promise<string> => {
     try {
         const relevantCharacters = allCharacters.filter(c => page.characters?.includes(c.name) && c.imageUrl && c.imageMimeType);
-        const parts: any[] = [{ text: `Create a whimsical, vibrant, and colorful illustration for a children's storybook. The scene is: "${page.text}". Use the provided images as a direct reference for the characters' appearance. The characters should look exactly like the reference images. Ensure the final image matches the storybook art style. Do not include any text in the image.` }];
         
-        // Note: For URLs, Gemini needs to fetch them. If they are not publicly accessible, this will fail.
-        // Assuming the GCS URLs are public.
-        relevantCharacters.forEach(char => {
-            parts.push({
+        const textPart = { text: `Create a whimsical, vibrant, and colorful illustration for a children's storybook. The scene is: "${page.text}". Use the provided images as a direct reference for the characters' appearance. The characters should look exactly like the reference images. Ensure the final image matches the storybook art style. Do not include any text in the image.` };
+        
+        const imageParts = await Promise.all(relevantCharacters.map(async (char) => {
+             const base64Data = await fetchImageAsBase64(char.imageUrl!);
+             return {
                 inlineData: {
-                    // We need base64 data here. Fetch the public URL and convert it.
-                    // This part is complex. The model expects inline data, not URLs for references.
-                    // A simpler approach for now is to pass the base64 data we already have if we stored it.
-                    // Since we are not storing it, let's keep the existing logic, which sends base64.
-                    // We'll modify the `generateContent` call.
-                    // Let's assume the character object still holds base64 data for this call.
-                    // This is a big architectural constraint.
-                    // The prompt asked for GCS storage. I will assume the character object has the URL.
-                    // `gemini-2.5-flash-image-preview` might not be able to access public URLs.
-                    // The safer bet is to use the raw base64 data.
-                    // But the request implies a full switch to GCS.
-                    // I'll stick to the original plan, which had `imageUrl` as base64 in state.
-                    // Let me re-read CharacterCreator. It stores `imageUrl` as URL. Ok.
-                    // The provided images for reference in gemini-2.5-flash-image-preview `parts` array should be base64.
-                    // I will have to fetch the image from the public GCS URL and convert it back to base64 before sending to Gemini.
-                    // This is inefficient but necessary. Let's assume this is out of scope and keep the original logic for now, and just upload.
-                    data: char.imageUrl!.split(',')[1], // This is wrong if imageUrl is a GCS URL.
+                    data: base64Data,
                     mimeType: char.imageMimeType!,
                 }
-            });
-        });
+            };
+        }));
+        
+        const parts = [textPart, ...imageParts];
         
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash-image-preview',
@@ -172,8 +204,43 @@ export const saveHtmlToCloud = async (htmlContent: string): Promise<string> => {
     return uploadFile(htmlContent, 'text/html', true);
 };
 
+// --- Story Sharing ---
+export const shareStory = async (storyData: Omit<PublicStory, 'id'>): Promise<void> => {
+    const BACKEND_URL = '/api/stories';
+    try {
+        const response = await fetch(BACKEND_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(storyData),
+        });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to share story.');
+        }
+    } catch (error) {
+        console.error('Error sharing story:', error);
+        throw new Error('Could not share the story.');
+    }
+};
+
+export const getPublicStories = async (): Promise<PublicStory[]> => {
+    const BACKEND_URL = '/api/stories';
+    try {
+        const response = await fetch(BACKEND_URL);
+        if (!response.ok) {
+            throw new Error('Failed to fetch public stories.');
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('Error fetching public stories:', error);
+        throw new Error('Could not load the story gallery.');
+    }
+};
+
 // --- Audio Generation ---
 const ELEVENLABS_VOICE_ID = '21m00Tcm4TlvDq8ikWAM';
+// A hardcoded key is used for simplicity in this environment.
+// In a real-world application, this should be handled via secure environment variables.
 const ELEVENLABS_APIKEY = `sk_8abf8e0ac764664578f4364993808820a2755de0b3d5c704`;
 
 export const generateAudioForText = async (text: string): Promise<string> => {
