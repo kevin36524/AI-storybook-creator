@@ -23,7 +23,6 @@ const StoryBookDisplay: React.FC<StoryBookDisplayProps> = ({ pages, title, onRes
   const [isPlaying, setIsPlaying] = useState(false);
 
   // Sharing state
-  const [isSharing, setIsSharing] = useState(false);
   const [shareConsent, setShareConsent] = useState(false);
   const [authorName, setAuthorName] = useState('');
   const [shareStatus, setShareStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -52,7 +51,7 @@ const StoryBookDisplay: React.FC<StoryBookDisplayProps> = ({ pages, title, onRes
   };
 
   const goToPrevPage = () => {
-    if (currentPage > 0) setCurrentPage(currentPage + 1);
+    if (currentPage > 0) setCurrentPage(currentPage - 1);
   };
 
   const handleTogglePlay = () => {
@@ -92,7 +91,45 @@ const StoryBookDisplay: React.FC<StoryBookDisplayProps> = ({ pages, title, onRes
     `;
   };
 
-  const handleDownloadPdf = async () => { /* Unchanged */ };
+  const handleDownloadPdf = async () => {
+    setIsDownloadingPdf(true);
+    try {
+        const { jsPDF } = jspdf;
+        const doc = new jsPDF({ orientation: 'p', unit: 'px', format: 'a4' });
+        
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const margin = 40;
+        const contentWidth = pageWidth - margin * 2;
+
+        for (let i = 0; i < pages.length; i++) {
+            const page = pages[i];
+            if (i > 0) doc.addPage();
+            
+            let cursorY = margin;
+
+            if (page.imageUrl) {
+                const img = new Image();
+                img.src = page.imageUrl;
+                await new Promise(resolve => { img.onload = resolve; img.onerror = resolve; });
+                
+                if (img.width > 0) {
+                    const imgHeight = (img.height * contentWidth) / img.width;
+                    doc.addImage(page.imageUrl, 'PNG', margin, cursorY, contentWidth, imgHeight);
+                    cursorY += imgHeight + 20;
+                }
+            }
+            
+            const splitText = doc.splitTextToSize(page.text, contentWidth);
+            doc.text(splitText, margin, cursorY);
+        }
+        
+        doc.save(`${title.toLowerCase().replace(/\s+/g, '-')}.pdf`);
+    } catch (error) {
+        console.error("Failed to generate PDF:", error);
+    } finally {
+        setIsDownloadingPdf(false);
+    }
+  };
 
   const handleSaveAndDownloadHtml = async () => {
     setIsSavingHtml(true);

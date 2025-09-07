@@ -1,6 +1,6 @@
 import React, { useState, useRef, ChangeEvent } from 'react';
 import type { Character } from '../types';
-import { generateCharacterImage, uploadFile } from '../services/geminiService';
+import { generateCharacterImage } from '../services/geminiService';
 import Card from './ui/Card';
 import Button from './ui/Button';
 import { MagicWandIcon, UserIcon, PhotoIcon, CheckCircleIcon } from './icons/Icons';
@@ -10,12 +10,9 @@ interface CharacterCreatorProps {
   onComplete: (characters: Character[]) => void;
 }
 
-const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+const fileToDataUri = (file: File): Promise<string> => new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => {
-        const base64String = (reader.result as string).split(',')[1];
-        resolve(base64String);
-    };
+    reader.onload = () => resolve(reader.result as string);
     reader.onerror = reject;
     reader.readAsDataURL(file);
 });
@@ -30,8 +27,8 @@ const CharacterCard: React.FC<{
     const handleGenerateImage = async () => {
         setIsLoading(true);
         try {
-            const publicUrl = await generateCharacterImage(character.description);
-            onUpdate({ ...character, imageUrl: publicUrl, imageMimeType: 'image/png' });
+            const dataUri = await generateCharacterImage(character.description);
+            onUpdate({ ...character, imageUrl: dataUri, imageMimeType: 'image/png' });
         } catch (error) {
             console.error("Failed to generate character image:", error);
             // You could add error state handling here
@@ -48,11 +45,10 @@ const CharacterCard: React.FC<{
         if (file) {
             setIsLoading(true);
             try {
-                const base64Content = await fileToBase64(file);
-                const publicUrl = await uploadFile(base64Content, file.type);
-                onUpdate({ ...character, imageUrl: publicUrl, imageMimeType: file.type });
+                const dataUri = await fileToDataUri(file);
+                onUpdate({ ...character, imageUrl: dataUri, imageMimeType: file.type });
             } catch (error) {
-                console.error("Failed to process and upload file:", error);
+                console.error("Failed to process file:", error);
             }
             setIsLoading(false);
         }

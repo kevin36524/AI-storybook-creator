@@ -9,8 +9,8 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 
 /**
- * Uploads file content to the backend service, which saves it to GCS.
- * @param content The file content (base64 for images, raw string for HTML).
+ * Uploads a file (HTML) to the backend service, which saves it to GCS.
+ * @param content The file content (raw string for HTML).
  * @param mimeType The IANA mime type of the content.
  * @param isHtml A flag to indicate if the content is HTML.
  * @returns A promise that resolves to the public URL of the stored file.
@@ -137,7 +137,7 @@ export const generateCharacterImage = async (description: string): Promise<strin
 
         if (response.generatedImages && response.generatedImages.length > 0) {
             const base64ImageBytes = response.generatedImages[0].image.imageBytes;
-            return await uploadFile(base64ImageBytes, 'image/png');
+            return `data:image/png;base64,${base64ImageBytes}`;
         } else {
             throw new Error("No image was generated.");
         }
@@ -147,35 +147,21 @@ export const generateCharacterImage = async (description: string): Promise<strin
     }
 };
 
-const fetchImageAsBase64 = async (imageUrl: string): Promise<string> => {
-    const response = await fetch(imageUrl);
-    const blob = await response.blob();
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const base64data = (reader.result as string).split(',')[1];
-            resolve(base64data);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-    });
-};
-
 export const generatePageImageWithReferences = async (page: StoryPage, allCharacters: Character[]): Promise<string> => {
     try {
         const relevantCharacters = allCharacters.filter(c => page.characters?.includes(c.name) && c.imageUrl && c.imageMimeType);
         
         const textPart = { text: `Create a whimsical, vibrant, and colorful illustration for a children's storybook. The scene is: "${page.text}". Use the provided images as a direct reference for the characters' appearance. The characters should look exactly like the reference images. Ensure the final image matches the storybook art style. Do not include any text in the image.` };
         
-        const imageParts = await Promise.all(relevantCharacters.map(async (char) => {
-             const base64Data = await fetchImageAsBase64(char.imageUrl!);
-             return {
+        const imageParts = relevantCharacters.map(char => {
+            const base64Data = char.imageUrl!.substring(char.imageUrl!.indexOf(',') + 1);
+            return {
                 inlineData: {
                     data: base64Data,
                     mimeType: char.imageMimeType!,
                 }
             };
-        }));
+        });
         
         const parts = [textPart, ...imageParts];
         
@@ -190,7 +176,7 @@ export const generatePageImageWithReferences = async (page: StoryPage, allCharac
         if (imagePart && imagePart.inlineData) {
             const base64ImageBytes = imagePart.inlineData.data;
             const mimeType = imagePart.inlineData.mimeType;
-            return await uploadFile(base64ImageBytes, mimeType);
+            return `data:${mimeType};base64,${base64ImageBytes}`;
         } else {
             throw new Error("No image was generated in the response.");
         }

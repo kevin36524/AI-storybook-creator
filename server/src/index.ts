@@ -1,11 +1,13 @@
-// FIX: Use standard ES module import for express. The `import = require()` syntax is not compatible with the current module target and was causing type resolution errors.
-import express from 'express';
+// FIX: Import Express types to resolve overload errors with route handlers and middleware.
+import express, { Express, Request, Response } from 'express';
 import cors from 'cors';
+import path from 'path';
 import { Storage } from '@google-cloud/storage';
 import { v4 as uuidv4 } from 'uuid';
 import { Firestore } from '@google-cloud/firestore';
 
-const app = express();
+// FIX: Explicitly type the express app to ensure correct type inference for its methods.
+const app: Express = express();
 const port = process.env.PORT || 8080;
 
 // --- INITIALIZE GCS ---
@@ -27,8 +29,6 @@ if (!databaseId) {
     process.exit(1);
 }
 
-// Connect to the specific Firestore database from environment variable.
-// The SDK automatically finds the service account credentials when deployed on GCP.
 const db = new Firestore({
     databaseId: databaseId,
 });
@@ -42,8 +42,8 @@ app.use(express.json({ limit: '10mb' }));
 
 // --- API ROUTES ---
 
-// File Upload Endpoint
-app.post('/api/upload', async (req, res) => {
+// File Upload Endpoint (Only for final HTML)
+app.post('/api/upload', async (req: Request, res: Response) => {
   try {
     const { fileContent, mimeType, isHtml } = req.body;
     
@@ -51,11 +51,15 @@ app.post('/api/upload', async (req, res) => {
       return res.status(400).json({ error: 'Missing file content or mime type.' });
     }
 
-    const fileExtension = isHtml ? 'html' : mimeType.split('/')[1] || 'png';
-    const fileName = `uploads/${uuidv4()}.${fileExtension}`;
+    // Only allow HTML uploads through this endpoint for security and optimization
+    if (!isHtml || mimeType !== 'text/html') {
+        return res.status(400).json({ error: 'This endpoint only accepts HTML files.' });
+    }
+
+    const fileName = `stories/${uuidv4()}.html`;
     const file = bucket.file(fileName);
 
-    const buffer = Buffer.from(fileContent, isHtml ? 'utf-8' : 'base64');
+    const buffer = Buffer.from(fileContent, 'utf-8');
 
     await file.save(buffer, {
       metadata: { contentType: mimeType },
@@ -71,7 +75,7 @@ app.post('/api/upload', async (req, res) => {
 });
 
 // Save Story to Gallery Endpoint
-app.post('/api/stories', async (req, res) => {
+app.post('/api/stories', async (req: Request, res: Response) => {
     try {
         const { title, author, coverImageUrl, htmlUrl } = req.body;
         if (!title || !author || !coverImageUrl || !htmlUrl) {
@@ -81,7 +85,9 @@ app.post('/api/stories', async (req, res) => {
         const newStory = {
             title,
             author,
-            coverImageUrl,
+            // The cover image is a data URI, we don't save it separately
+            // We just store the GCS link to the HTML file which contains it
+            coverImageUrl, 
             htmlUrl,
             createdAt: new Date(),
         };
@@ -97,7 +103,7 @@ app.post('/api/stories', async (req, res) => {
 
 
 // Get Public Stories Endpoint
-app.get('/api/stories', async (req, res) => {
+app.get('/api/stories', async (req: Request, res: Response) => {
     try {
         const snapshot = await storiesCollection.orderBy('createdAt', 'desc').get();
         const stories: any[] = [];
@@ -109,6 +115,16 @@ app.get('/api/stories', async (req, res) => {
         console.error('Error fetching stories from Firestore:', error);
         res.status(500).json({ error: 'Failed to fetch stories.' });
     }
+});
+
+// --- STATIC FILE SERVING ---
+// Serve the built frontend assets
+const publicPath = path.join(__dirname, 'public');
+app.use(express.static(publicPath));
+
+// For any other request, serve the index.html file for client-side routing
+app.get('*', (req: Request, res: Response) => {
+    res.sendFile(path.join(publicPath, 'index.html'));
 });
 
 
