@@ -7,6 +7,30 @@ if (!process.env.API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+
+/**
+ * Placeholder for saving an an image to a cloud service like Google Cloud Storage.
+ * In a real application, this function would:
+ * 1. Take the base64 image data.
+ * 2. Send it to a secure backend endpoint.
+ * 3. The backend would then upload the image to a GCS bucket.
+ * 4. The backend would return the public URL of the uploaded image.
+ *
+ * @param base64ImageData The base64 encoded image data string.
+ * @param mimeType The mime type of the image (e.g., 'image/png').
+ * @returns A promise that resolves to the public URL of the stored image.
+ */
+const saveImageToCloud = async (base64ImageData: string, mimeType: string): Promise<string> => {
+    console.log("Attempting to save image to cloud...");
+    // This is a simulation. In a real app, you would make an API call here.
+    // We are returning the data URI directly for now so the app can function.
+    // Replace this with your actual backend logic.
+    await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
+    console.log("Image 'saved' to cloud. In a real app, this would be a public URL.");
+    return `data:${mimeType};base64,${base64ImageData}`;
+};
+
+
 // --- Story Outline Generation ---
 
 const storyOutlineSchema = {
@@ -143,6 +167,9 @@ export const generateCharacterImage = async (description: string): Promise<strin
 
         if (response.generatedImages && response.generatedImages.length > 0) {
             const base64ImageBytes = response.generatedImages[0].image.imageBytes;
+            // In a real app, you might want to await this, but we'll fire-and-forget
+            // for this simulation to keep the UI responsive.
+            saveImageToCloud(base64ImageBytes, 'image/png');
             return `data:image/png;base64,${base64ImageBytes}`;
         } else {
             throw new Error("No image was generated.");
@@ -183,6 +210,8 @@ export const generatePageImageWithReferences = async (page: StoryPage, allCharac
         if (imagePart && imagePart.inlineData) {
             const base64ImageBytes = imagePart.inlineData.data;
             const mimeType = imagePart.inlineData.mimeType;
+            // Fire-and-forget the cloud save operation.
+            saveImageToCloud(base64ImageBytes, mimeType);
             return `data:${mimeType};base64,${base64ImageBytes}`;
         } else {
             throw new Error("No image was generated in the response.");
@@ -191,4 +220,48 @@ export const generatePageImageWithReferences = async (page: StoryPage, allCharac
         console.error("Error generating page image:", error);
         throw new Error("Failed to generate the page illustration.");
     }
+};
+
+// --- Audio Generation ---
+
+const ELEVENLABS_VOICE_ID = '21m00Tcm4TlvDq8ikWAM'; // Rachel - A good default storyteller voice
+const ELEVENLABS_APIKEY = `sk_8abf8e0ac764664578f4364993808820a2755de0b3d5c704`;
+
+export const generateAudioForText = async (text: string): Promise<string> => {
+  const apiKey = process.env.ELEVENLABS_API_KEY || ELEVENLABS_APIKEY;
+  if (!apiKey) {
+    throw new Error("ElevenLabs API key is not configured. Please add it as a secret named ELEVENLABS_API_KEY.");
+  }
+
+  const API_URL = `https://api.elevenlabs.io/v1/text-to-speech/${ELEVENLABS_VOICE_ID}`;
+
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'xi-api-key': apiKey,
+      },
+      body: JSON.stringify({
+        text: text,
+        // Using turbo model for speed, as per request for "flash"
+        model_id: "eleven_turbo_v2",
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.75,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`ElevenLabs API Error: ${errorData.detail?.message || response.statusText}`);
+    }
+
+    const audioBlob = await response.blob();
+    return URL.createObjectURL(audioBlob);
+  } catch (error) {
+    console.error("Error generating audio from ElevenLabs:", error);
+    throw new Error("Failed to create audio for the story page.");
+  }
 };

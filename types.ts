@@ -3,6 +3,7 @@ export interface StoryPage {
   text: string;
   imageUrl?: string;
   characters?: string[];
+  audioUrl?: string;
 }
 
 export interface Character {

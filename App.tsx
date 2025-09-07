@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { AppState } from './constants';
 import type { StoryPage, Character } from './types';
-import { generateStoryOutline, identifyCharactersAndPages } from './services/geminiService';
+import { generateStoryOutline, identifyCharactersAndPages, generateAudioForText } from './services/geminiService';
 import PromptInput from './components/PromptInput';
 import OutlineDisplay from './components/OutlineDisplay';
 import CharacterCreator from './components/CharacterCreator';
@@ -20,6 +20,7 @@ const App: React.FC = () => {
   const [currentPageIndex, setCurrentPageIndex] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState<boolean>(false);
 
   const handleReset = () => {
     setAppState(AppState.PROMPT);
@@ -29,6 +30,7 @@ const App: React.FC = () => {
     setCurrentPageIndex(0);
     setError(null);
     setIsLoading(false);
+    setIsGeneratingAudio(false);
   };
 
   const handlePromptSubmit = useCallback(async (prompt: string) => {
@@ -89,6 +91,33 @@ const App: React.FC = () => {
     }
   }, [storyPages.length]);
 
+  const handlePageTextChange = useCallback((pageIndex: number, newText: string) => {
+    setStoryPages(prevPages => 
+      prevPages.map((page, index) => 
+        index === pageIndex ? { ...page, text: newText } : page
+      )
+    );
+  }, []);
+
+  const handleGenerateAudiobook = useCallback(async () => {
+    setIsGeneratingAudio(true);
+    try {
+      const pagesWithAudio = await Promise.all(storyPages.map(async (page) => {
+        if (!page.audioUrl) {
+          const audioUrl = await generateAudioForText(page.text);
+          return { ...page, audioUrl };
+        }
+        return page;
+      }));
+      setStoryPages(pagesWithAudio);
+    } catch (err) {
+      console.error("Failed to generate audiobook", err);
+      // Optionally set an error state to show in the UI
+    } finally {
+      setIsGeneratingAudio(false);
+    }
+  }, [storyPages]);
+
   const renderContent = () => {
     if (isLoading && appState !== AppState.PROMPT && appState !== AppState.CREATING_PAGES) {
       return <Card><Spinner message="Finding your characters..." /></Card>;
@@ -134,25 +163,33 @@ const App: React.FC = () => {
             pageIndex={currentPageIndex}
             totalPages={storyPages.length}
             onPageComplete={handlePageComplete}
+            onPageTextChange={handlePageTextChange}
           />
         );
       case AppState.FINISHED:
-        return <StoryBookDisplay pages={storyPages} onReset={handleReset} />;
+        return (
+          <StoryBookDisplay 
+            pages={storyPages} 
+            onReset={handleReset}
+            isGeneratingAudio={isGeneratingAudio}
+            onGenerateAudiobook={handleGenerateAudiobook}
+          />
+        );
       default:
         return null;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-100 to-rose-200 text-slate-800 antialiased">
+    <div className="min-h-screen bg-gradient-to-br from-amber-100 to-rose-200 text-slate-800 antialiased dark:bg-slate-900 dark:from-slate-800 dark:to-rose-900 dark:text-slate-200">
       <main className="container mx-auto px-4 py-8">
         <header className="text-center mb-12">
-          <h1 className="font-title text-5xl md:text-7xl text-rose-500 flex items-center justify-center gap-4">
+          <h1 className="font-title text-5xl md:text-7xl text-rose-500 dark:text-rose-400 flex items-center justify-center gap-4">
             <BookOpenIcon />
             AI Storybook Creator
             <SparklesIcon />
           </h1>
-          <p className="text-slate-600 mt-4 text-lg">
+          <p className="text-slate-600 dark:text-slate-400 mt-4 text-lg">
             Let's create a magical story together!
           </p>
         </header>
@@ -160,7 +197,7 @@ const App: React.FC = () => {
             {renderContent()}
         </div>
       </main>
-      <footer className="text-center p-4 text-slate-500 text-sm">
+      <footer className="text-center p-4 text-slate-500 dark:text-slate-400 text-sm">
         <p>Powered by Gemini AI. Created with imagination.</p>
       </footer>
     </div>

@@ -12,6 +12,7 @@ interface PageCreatorProps {
   pageIndex: number;
   totalPages: number;
   onPageComplete: (pageIndex: number, imageUrl: string) => void;
+  onPageTextChange: (pageIndex: number, newText: string) => void;
 }
 
 const ImagePlaceholder: React.FC = () => (
@@ -21,7 +22,7 @@ const ImagePlaceholder: React.FC = () => (
 );
 
 
-const PageCreator: React.FC<PageCreatorProps> = ({ page, allCharacters, pageIndex, totalPages, onPageComplete }) => {
+const PageCreator: React.FC<PageCreatorProps> = ({ page, allCharacters, pageIndex, totalPages, onPageComplete, onPageTextChange }) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,20 +55,25 @@ const PageCreator: React.FC<PageCreatorProps> = ({ page, allCharacters, pageInde
   return (
     <Card className="animate-fade-in">
         <div className="text-center mb-6">
-            <h2 className="text-3xl font-bold text-slate-700">Creating Page {pageIndex + 1} of {totalPages}</h2>
-            <div className="w-full bg-gray-200 rounded-full h-2.5 mt-4">
+            <h2 className="text-3xl font-bold text-slate-700 dark:text-slate-200">Creating Page {pageIndex + 1} of {totalPages}</h2>
+            <div className="w-full bg-gray-200 rounded-full h-2.5 mt-4 dark:bg-gray-700">
               <div className="bg-rose-500 h-2.5 rounded-full" style={{ width: `${((pageIndex + 1) / totalPages) * 100}%` }}></div>
             </div>
         </div>
 
         <div className="grid md:grid-cols-2 gap-8 items-center">
             <div className="space-y-4">
-                <h3 className="font-bold text-rose-500 text-xl">Story Text</h3>
-                <p className="text-slate-600 text-lg bg-amber-50 p-4 rounded-xl border border-amber-200 min-h-[100px]">{page.text}</p>
+                <h3 className="font-bold text-rose-500 dark:text-rose-400 text-xl">Story Text (Editable)</h3>
+                <textarea
+                  value={page.text}
+                  onChange={(e) => onPageTextChange(pageIndex, e.target.value)}
+                  className="w-full h-40 p-4 border-2 border-amber-300 rounded-xl focus:ring-2 focus:ring-amber-400 focus:border-amber-400 transition duration-300 resize-none bg-amber-50 text-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:border-amber-800"
+                />
+
                 <div className="pt-4 flex flex-col sm:flex-row gap-4">
                     <Button onClick={createImageForPage} variant="secondary" isLoading={isLoading} disabled={isLoading}>
                         <ArrowPathIcon />
-                        Try Again
+                        Regenerate
                     </Button>
                     <Button onClick={handleApprove} variant="success" disabled={!imageUrl || isLoading}>
                         <CheckCircleIcon />
@@ -78,7 +84,7 @@ const PageCreator: React.FC<PageCreatorProps> = ({ page, allCharacters, pageInde
             <div className="w-full aspect-square rounded-2xl shadow-lg overflow-hidden">
                 {isLoading && <div className="h-full"><Spinner message="Painting your picture..."/></div>}
                 {!isLoading && error && (
-                    <div className="w-full h-full bg-red-100 flex flex-col items-center justify-center p-4 text-center text-red-700 rounded-2xl">
+                    <div className="w-full h-full bg-red-100 flex flex-col items-center justify-center p-4 text-center text-red-700 rounded-2xl dark:bg-red-900 dark:text-red-200">
                         <p className="font-semibold">Oh no!</p>
                         <p>{error}</p>
                     </div>
