@@ -1,5 +1,7 @@
 {
   "name": "AI Storybook Creator",
   "description": "An application for kids to create their own storybooks. Users provide a story idea, and the app generates a page-by-page outline. Then, it creates a unique, AI-generated illustration for each page, resulting in a complete, illustrated storybook.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera"
+  ]
 }

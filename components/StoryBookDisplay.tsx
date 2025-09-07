@@ -1,9 +1,11 @@
-
 import React, { useState } from 'react';
 import type { StoryPage } from '../types';
 import Card from './ui/Card';
 import Button from './ui/Button';
-import { ArrowRightIcon, MagicWandIcon } from './icons/Icons';
+import { ArrowRightIcon, MagicWandIcon, DownloadIcon } from './icons/Icons';
+
+// This tells TypeScript that jspdf is available on the window object
+declare const jspdf: any;
 
 interface StoryBookDisplayProps {
   pages: StoryPage[];
@@ -12,6 +14,7 @@ interface StoryBookDisplayProps {
 
 const StoryBookDisplay: React.FC<StoryBookDisplayProps> = ({ pages, onReset }) => {
   const [currentPage, setCurrentPage] = useState(0);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const goToNextPage = () => {
     if (currentPage < pages.length - 1) {
@@ -24,6 +27,51 @@ const StoryBookDisplay: React.FC<StoryBookDisplayProps> = ({ pages, onReset }) =
       setCurrentPage(currentPage - 1);
     }
   };
+
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    const { jsPDF } = jspdf;
+    const doc = new jsPDF('p', 'pt', 'a4');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 40;
+    const contentWidth = pageWidth - (margin * 2);
+
+    for (let i = 0; i < pages.length; i++) {
+        const page = pages[i];
+        if (i > 0) {
+            doc.addPage();
+        }
+
+        // Add Image
+        if (page.imageUrl) {
+            try {
+                const img = new Image();
+                img.src = page.imageUrl;
+                await new Promise(resolve => img.onload = resolve);
+                const imgWidth = contentWidth;
+                const imgHeight = (img.height * imgWidth) / img.width;
+                doc.addImage(img, 'PNG', margin, margin, imgWidth, imgHeight);
+
+                // Add Text
+                const textY = margin + imgHeight + 30;
+                doc.setFontSize(14);
+                doc.setTextColor(51, 65, 85); // slate-700
+                const textLines = doc.splitTextToSize(page.text, contentWidth);
+                doc.text(textLines, margin, textY);
+            } catch (error) {
+                console.error("Error adding image to PDF:", error);
+                doc.text("Error loading image.", margin, margin);
+            }
+        } else {
+             doc.text("No image for this page.", margin, margin);
+        }
+    }
+
+    doc.save('my-storybook.pdf');
+    setIsDownloading(false);
+  };
+
 
   const isLastPage = currentPage === pages.length - 1;
 
@@ -60,17 +108,24 @@ const StoryBookDisplay: React.FC<StoryBookDisplayProps> = ({ pages, onReset }) =
                 Next
              </Button>
         </div>
-
-        {isLastPage && (
-            <div className="mt-10 text-center border-t border-rose-200 pt-8">
-                <h3 className="text-2xl font-bold text-slate-700">The End</h3>
-                <p className="text-slate-500 my-4">Want to create another magical tale?</p>
-                <Button onClick={onReset} variant="primary">
-                    <MagicWandIcon />
-                    Create a New Story
-                </Button>
-            </div>
-        )}
+        
+        <div className="mt-10 text-center border-t border-rose-200 pt-8 flex flex-col sm:flex-row justify-center items-center gap-4">
+             {isLastPage ? (
+                <>
+                    <h3 className="text-2xl font-bold text-slate-700">The End!</h3>
+                    <Button onClick={onReset} variant="primary">
+                        <MagicWandIcon />
+                        Create a New Story
+                    </Button>
+                </>
+             ) : (
+                <p className="text-slate-500">Keep reading to see what happens next!</p>
+             )}
+             <Button onClick={handleDownload} variant="success" isLoading={isDownloading}>
+                <DownloadIcon />
+                Download PDF
+            </Button>
+        </div>
     </Card>
   );
 };

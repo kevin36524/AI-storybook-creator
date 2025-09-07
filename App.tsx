@@ -1,18 +1,22 @@
-
 import React, { useState, useCallback } from 'react';
 import { AppState } from './constants';
-import type { StoryPage } from './types';
-import { generateStoryOutline } from './services/geminiService';
+import type { StoryPage, Character } from './types';
+import { generateStoryOutline, identifyCharactersAndPages } from './services/geminiService';
 import PromptInput from './components/PromptInput';
 import OutlineDisplay from './components/OutlineDisplay';
+import CharacterCreator from './components/CharacterCreator';
 import PageCreator from './components/PageCreator';
 import StoryBookDisplay from './components/StoryBookDisplay';
 import { BookOpenIcon, SparklesIcon } from './components/icons/Icons';
+import Card from './components/ui/Card';
+import Spinner from './components/ui/Spinner';
+
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.PROMPT);
   const [storyPrompt, setStoryPrompt] = useState<string>('');
   const [storyPages, setStoryPages] = useState<StoryPage[]>([]);
+  const [characters, setCharacters] = useState<Character[]>([]);
   const [currentPageIndex, setCurrentPageIndex] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -21,6 +25,7 @@ const App: React.FC = () => {
     setAppState(AppState.PROMPT);
     setStoryPrompt('');
     setStoryPages([]);
+    setCharacters([]);
     setCurrentPageIndex(0);
     setError(null);
     setIsLoading(false);
@@ -42,7 +47,31 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const handleOutlineConfirm = () => {
+  const handleOutlineConfirm = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const { characters, pagesWithCharacters } = await identifyCharactersAndPages(storyPages);
+      setCharacters(characters);
+      
+      const updatedPages = storyPages.map(p => {
+        const pageUpdate = pagesWithCharacters.find(pwc => pwc.page === p.page);
+        return pageUpdate ? { ...p, characters: pageUpdate.characters } : p;
+      });
+      setStoryPages(updatedPages);
+
+      setAppState(AppState.CHARACTER_CREATION);
+    } catch (err) {
+      setError('We had trouble finding the characters in the story. Please try again.');
+      console.error(err);
+      setAppState(AppState.OUTLINE); // Go back to outline view on error
+    } finally {
+      setIsLoading(false);
+    }
+  }, [storyPages]);
+  
+  const handleCharactersConfirm = (finalCharacters: Character[]) => {
+    setCharacters(finalCharacters);
     setAppState(AppState.CREATING_PAGES);
   };
 
@@ -61,6 +90,18 @@ const App: React.FC = () => {
   }, [storyPages.length]);
 
   const renderContent = () => {
+    if (isLoading && appState !== AppState.PROMPT && appState !== AppState.CREATING_PAGES) {
+      return <Card><Spinner message="Finding your characters..." /></Card>;
+    }
+    if (error && appState === AppState.OUTLINE) {
+        return (
+            <Card className="text-center">
+                <p className="text-red-500 mb-4">{error}</p>
+                <button onClick={handleReset} className="text-rose-500 font-semibold">Start Over</button>
+            </Card>
+        )
+    }
+
     switch (appState) {
       case AppState.PROMPT:
         return (
@@ -78,10 +119,18 @@ const App: React.FC = () => {
             onRetry={handleReset}
           />
         );
+      case AppState.CHARACTER_CREATION:
+        return (
+            <CharacterCreator 
+                characters={characters}
+                onComplete={handleCharactersConfirm}
+            />
+        );
       case AppState.CREATING_PAGES:
         return (
           <PageCreator
             page={storyPages[currentPageIndex]}
+            allCharacters={characters}
             pageIndex={currentPageIndex}
             totalPages={storyPages.length}
             onPageComplete={handlePageComplete}

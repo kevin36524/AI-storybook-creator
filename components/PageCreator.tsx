@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
-import { generateImage, generateImagePrompt } from '../services/geminiService';
-import type { StoryPage } from '../types';
+import { generatePageImageWithReferences } from '../services/geminiService';
+import type { StoryPage, Character } from '../types';
 import Card from './ui/Card';
 import Button from './ui/Button';
 import Spinner from './ui/Spinner';
@@ -9,6 +8,7 @@ import { ArrowPathIcon, PaintBrushIcon, CheckCircleIcon } from './icons/Icons';
 
 interface PageCreatorProps {
   page: StoryPage;
+  allCharacters: Character[];
   pageIndex: number;
   totalPages: number;
   onPageComplete: (pageIndex: number, imageUrl: string) => void;
@@ -21,7 +21,7 @@ const ImagePlaceholder: React.FC = () => (
 );
 
 
-const PageCreator: React.FC<PageCreatorProps> = ({ page, pageIndex, totalPages, onPageComplete }) => {
+const PageCreator: React.FC<PageCreatorProps> = ({ page, allCharacters, pageIndex, totalPages, onPageComplete }) => {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,8 +31,7 @@ const PageCreator: React.FC<PageCreatorProps> = ({ page, pageIndex, totalPages, 
     setError(null);
     setImageUrl(null);
     try {
-      const imagePrompt = await generateImagePrompt(page.text);
-      const generatedImageUrl = await generateImage(imagePrompt);
+      const generatedImageUrl = await generatePageImageWithReferences(page, allCharacters);
       setImageUrl(generatedImageUrl);
     } catch (err) {
       console.error(err);
@@ -40,8 +39,7 @@ const PageCreator: React.FC<PageCreatorProps> = ({ page, pageIndex, totalPages, 
     } finally {
       setIsLoading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page.text, pageIndex]);
+  }, [page, allCharacters]);
 
   useEffect(() => {
     createImageForPage();
