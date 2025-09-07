@@ -1,6 +1,6 @@
 import React, { useState, useRef, ChangeEvent } from 'react';
 import type { Character } from '../types';
-import { generateCharacterImage } from '../services/geminiService';
+import { generateCharacterImage, uploadFile } from '../services/geminiService';
 import Card from './ui/Card';
 import Button from './ui/Button';
 import { MagicWandIcon, UserIcon, PhotoIcon, CheckCircleIcon } from './icons/Icons';
@@ -10,11 +10,11 @@ interface CharacterCreatorProps {
   onComplete: (characters: Character[]) => void;
 }
 
-const fileToDataUri = (file: File): Promise<{ data: string, mimeType: string }> => new Promise((resolve, reject) => {
+const fileToBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
         const base64String = (reader.result as string).split(',')[1];
-        resolve({ data: base64String, mimeType: file.type });
+        resolve(base64String);
     };
     reader.onerror = reject;
     reader.readAsDataURL(file);
@@ -30,10 +30,8 @@ const CharacterCard: React.FC<{
     const handleGenerateImage = async () => {
         setIsLoading(true);
         try {
-            const imageUrl = await generateCharacterImage(character.description);
-            // We need the raw base64 data, not the data URI
-            const base64Data = imageUrl.split(',')[1];
-            onUpdate({ ...character, imageUrl: base64Data, imageMimeType: 'image/png' });
+            const publicUrl = await generateCharacterImage(character.description);
+            onUpdate({ ...character, imageUrl: publicUrl, imageMimeType: 'image/png' });
         } catch (error) {
             console.error("Failed to generate character image:", error);
             // You could add error state handling here
@@ -50,10 +48,11 @@ const CharacterCard: React.FC<{
         if (file) {
             setIsLoading(true);
             try {
-                const { data, mimeType } = await fileToDataUri(file);
-                onUpdate({ ...character, imageUrl: data, imageMimeType: mimeType });
+                const base64Content = await fileToBase64(file);
+                const publicUrl = await uploadFile(base64Content, file.type);
+                onUpdate({ ...character, imageUrl: publicUrl, imageMimeType: file.type });
             } catch (error) {
-                console.error("Failed to process file:", error);
+                console.error("Failed to process and upload file:", error);
             }
             setIsLoading(false);
         }
@@ -70,7 +69,7 @@ const CharacterCard: React.FC<{
                     {isLoading ? (
                         <div className="w-8 h-8 border-4 border-rose-200 border-t-rose-500 rounded-full animate-spin"></div>
                     ) : character.imageUrl ? (
-                        <img src={`data:${character.imageMimeType};base64,${character.imageUrl}`} alt={character.name} className="w-full h-full object-cover"/>
+                        <img src={character.imageUrl} alt={character.name} className="w-full h-full object-cover"/>
                     ) : (
                         <UserIcon />
                     )}
