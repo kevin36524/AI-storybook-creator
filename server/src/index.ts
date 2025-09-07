@@ -1,9 +1,9 @@
-import express from 'express';
+// FIX: Changed express import to use require syntax to solve a type resolution error on app.use().
+import express = require('express');
 import cors from 'cors';
 import { Storage } from '@google-cloud/storage';
 import { v4 as uuidv4 } from 'uuid';
-import { initializeApp, cert, getApps } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { Firestore } from '@google-cloud/firestore';
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -20,18 +20,16 @@ const bucket = storage.bucket(bucketName);
 
 
 // --- INITIALIZE FIRESTORE ---
-// When deployed on GCP (like Cloud Run), the SDK automatically finds the service account credentials.
-// For local development, you would need to set the GOOGLE_APPLICATION_CREDENTIALS env var.
-if (getApps().length === 0) {
-    initializeApp();
-}
-const db = getFirestore();
+// Connect to the specific Firestore database named 'ai-story-creator'.
+// The SDK automatically finds the service account credentials when deployed on GCP.
+const db = new Firestore({
+    databaseId: 'ai-story-creator',
+});
 const storiesCollection = db.collection('stories');
 
 
 // --- MIDDLEWARE ---
 app.use(cors());
-// FIX: Use `express.json()` instead of a named import to correctly apply the body-parsing middleware.
 app.use(express.json({ limit: '10mb' }));
 
 
