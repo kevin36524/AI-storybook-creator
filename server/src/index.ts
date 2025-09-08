@@ -191,6 +191,9 @@ app.post('/api/generate-outline', async (req, res) => {
                 responseSchema: storyOutlineSchema,
             }
         });
+        if (!response.text) {
+            throw new Error("No response text received from the model.");
+        }
         const jsonString = response.text.trim();
         const parsed = JSON.parse(jsonString);
         res.status(200).json(parsed);
@@ -216,6 +219,9 @@ app.post('/api/identify-characters', async (req, res) => {
                 responseSchema: characterSchema,
             }
         });
+        if (!response.text) {
+            throw new Error("No response text received from the model.");
+        }
         const jsonString = response.text.trim();
         const parsed = JSON.parse(jsonString);
         res.status(200).json({ characters: parsed.characters || [], pagesWithCharacters: parsed.pages || [] });
@@ -238,6 +244,9 @@ app.post('/api/generate-character-image', async (req, res) => {
         });
 
         if (response.generatedImages && response.generatedImages.length > 0) {
+            if (!response.generatedImages[0].image?.imageBytes) {
+                throw new Error("No generated image bytes received from the model.");
+            }
             const base64ImageBytes = response.generatedImages[0].image.imageBytes;
             res.status(200).json({ imageUrl: `data:image/png;base64,${base64ImageBytes}` });
         } else {
@@ -275,6 +284,9 @@ app.post('/api/generate-page-image', async (req, res) => {
             config: { responseModalities: [Modality.IMAGE, Modality.TEXT] },
         });
 
+        if (!response.candidates?.[0]?.content?.parts) {
+            throw new Error("No response parts received from the model.");
+        }
         const imagePart = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
 
         if (imagePart && imagePart.inlineData) {

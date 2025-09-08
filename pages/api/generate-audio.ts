@@ -1,16 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { Readable } from 'stream';
 
 const ELEVENLABS_VOICE_ID = '21m00Tcm4TlvDq8ikWAM';
-
-async function streamToBuffer(stream: Readable): Promise<Buffer> {
-    const chunks: Buffer[] = [];
-    return new Promise((resolve, reject) => {
-        stream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
-        stream.on('error', (err) => reject(err));
-        stream.on('end', () => resolve(Buffer.concat(chunks)));
-    });
-}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (req.method !== 'POST') {
@@ -50,8 +40,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
         
         res.setHeader('Content-Type', 'audio/mpeg');
-        const buffer = await streamToBuffer(elevenLabsResponse.body as any);
-        res.status(200).send(buffer);
+        const buffer = await elevenLabsResponse.arrayBuffer();
+        res.status(200).send(Buffer.from(buffer));
 
     } catch (error) {
         console.error('Error in /api/generate-audio:', error);

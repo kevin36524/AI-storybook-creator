@@ -40,7 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             config: { responseModalities: [Modality.IMAGE, Modality.TEXT] },
         });
 
-        const imagePart = response.candidates?.[0]?.content?.parts.find(p => p.inlineData);
+        const imagePart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
 
         if (imagePart && imagePart.inlineData) {
             const base64ImageBytes = imagePart.inlineData.data;

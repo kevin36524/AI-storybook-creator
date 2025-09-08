@@ -33,6 +33,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 responseSchema: storyOutlineSchema,
             }
         });
+        if (!response.text) {
+            throw new Error("No response text received from the model.");
+        }
         const jsonString = response.text.trim();
         const parsed = JSON.parse(jsonString);
         res.status(200).json(parsed);

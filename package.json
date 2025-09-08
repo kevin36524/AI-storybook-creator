@@ -3,10 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "gcloud auth activate-service-account --key-file=./admin-key.json && next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "deployCloudRun": "gcloud auth activate-service-account --key-file=./admin-key.json && gcloud builds submit --config cloudbuild.cloudrun.yaml --project hriyaan-24ae1"
+
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.8.0",

@@ -1,0 +1,63 @@
+steps:
+  # Create Artifact Registry repo if needed
+  - name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - -c
+      - |
+        if ! gcloud artifacts repositories describe ai-story-generator --location=us-central1 --format="value(name)" 2>/dev/null; then
+          echo "Creating Artifact Registry repository: ai-story-generator"
+          gcloud artifacts repositories create ai-story-generator \
+            --repository-format=docker \
+            --location=us-central1 \
+            --description="Docker repository for ai-story-generator app"
+        else
+          echo "Repository ai-story-generator already exists"
+        fi
+
+  # Configure Docker auth
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args: ['auth', 'configure-docker', 'us-central1-docker.pkg.dev']
+
+  # Build image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/ai-story-generator/ai-story-generator:latest', '.']
+
+  # Push image
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/ai-story-generator/ai-story-generator:latest']
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
+      - run
+      - deploy
+      - ai-story-generator
+      - --image
+      - us-central1-docker.pkg.dev/$PROJECT_ID/ai-story-generator/ai-story-generator:latest
+      - --region
+      - us-central1
+      - --platform
+      - managed
+      - --allow-unauthenticated
+      - --service-account
+      - ai-story-gen-service-account@$PROJECT_ID.iam.gserviceaccount.com
+      - --set-env-vars
+      - GCP_PROJECT_ID=$PROJECT_ID,API_KEY=YOUR_GENAI_DUMMY_APIKEY,FIRESTORE_DATABASE_ID=OPTIONAL_YOUR_FIRESTORE_DB,GCS_BUCKET_NAME=OPTIONAL_GCS_BUCKET_NAME,ELEVENLABS_API_KEY=ELEVEN_LABS_API_KEY
+      - --port
+      - '8080'
+      - --memory
+      - '1Gi'
+      - --cpu
+      - '1'
+      - --max-instances
+      - '2'
+      - --timeout
+      - '300'
+
+images:
+  - us-central1-docker.pkg.dev/$PROJECT_ID/ai-story-generator/ai-story-generator:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+

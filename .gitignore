@@ -33,3 +33,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+cloudbuild.cloudrun.yaml
+admin-key.json
+

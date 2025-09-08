@@ -229,6 +229,7 @@ const HomePage: React.FC = () => {
         <meta name="description" content="An application for kids to create their own storybooks using AI." />
         <link rel="icon" href="/favicon.ico" />
         <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" async></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" async></script>
       </Head>
       <div className="min-h-screen bg-gradient-to-br from-amber-100 to-rose-200 text-slate-800 antialiased dark:bg-slate-900 dark:from-slate-800 dark:to-rose-900 dark:text-slate-200">
         <main className="container mx-auto px-4 py-8">
